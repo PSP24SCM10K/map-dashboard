@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import { states } from './asset/states.js';
 import './App.css';
 
-// Set your Mapbox access token
+
 mapboxgl.accessToken = 'pk.eyJ1IjoicHJhamFrdGEyMDU1IiwiYSI6ImNsdHFneWFhYTAzYWwyamxjc2lkNjhidWsifQ.UAmOtcYqST3OynA28EWI1w';
 
 function App() {
@@ -12,10 +12,10 @@ function App() {
   const [lng, setLng] = useState(-98.35);
   const [lat, setLat] = useState(39.82);
   const [zoom, setZoom] = useState(3.5);
-  const [opacity, setOpacity] = useState(0.5); // State to manage the layer's opacity
+  const [opacity, setOpacity] = useState(0.5);
 
   useEffect(() => {
-    if (map.current) return; // Initialize map only once
+    if (map.current) return; 
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
@@ -49,8 +49,9 @@ function App() {
 
       map.current.addSource('states', { type: 'geojson', data: statesGeoJSON });
 
+      // Add the fill layer
       map.current.addLayer({
-        id: 'states',
+        id: 'states-fill',
         type: 'fill',
         source: 'states',
         paint: {
@@ -58,17 +59,28 @@ function App() {
           'fill-opacity': opacity
         }
       });
-    });
-  }, [lng, lat, zoom, opacity]); // Removed dependencies to avoid re-initialization
 
-  useEffect(() => {
-    if (map.current && map.current.getLayer('states')) {
-      map.current.setPaintProperty('states', 'fill-opacity', opacity);
-    }
-  }, [opacity]);
+      // Add the border layer
+      map.current.addLayer({
+        id: 'states-border',
+        type: 'line',
+        source: 'states',
+        layout: {},
+        paint: {
+          'line-color': '#000',
+          'line-width': 1
+        }
+      });
+    });
+  }, [lng, lat, zoom, opacity]); 
 
   const handleOpacityChange = (event) => {
-    setOpacity(parseFloat(event.target.value));
+    const newOpacity = parseFloat(event.target.value);
+    setOpacity(newOpacity);
+    if (map.current && map.current.getLayer('states-fill')) {
+      map.current.setPaintProperty('states-fill', 'fill-opacity', newOpacity);
+      map.current.setPaintProperty('states-border', 'line-opacity', newOpacity);
+    }
   };
 
   return (
