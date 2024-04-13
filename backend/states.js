@@ -6932,4 +6932,4 @@ const states = [
                 ]
     }
 ];
-export {states};
+module.exports = states;

@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
-import { states } from './asset/states.js';
 import './App.css';
 
 mapboxgl.accessToken = 'pk.eyJ1IjoicHJhamFrdGEyMDU1IiwiYSI6ImNsdHFneWFhYTAzYWwyamxjc2lkNjhidWsifQ.UAmOtcYqST3OynA28EWI1w';
+
 function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
@@ -12,73 +12,103 @@ function App() {
   const [zoom, setZoom] = useState(3.5);
   const [opacity, setOpacity] = useState(0.5);
   const [fillVisibility, setFillVisibility] = useState('visible');
-  const [selectedState, setSelectedState] = useState(''); 
-
+  const popup = useRef(new mapboxgl.Popup({ closeButton: false }));
+  const [selectedState, setSelectedState] = useState('');
+  const [states, setStates] = useState([]); // State to store fetched data
   useEffect(() => {
-    if (map.current) return;
+    if (!map.current) {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: 'mapbox://styles/mapbox/satellite-streets-v11',
+        center: [lng, lat],
+        zoom: zoom
+      });
+  
+      map.current.on('move', () => {
+        setLng(parseFloat(map.current.getCenter().lng.toFixed(4)));
+        setLat(parseFloat(map.current.getCenter().lat.toFixed(4)));
+        setZoom(parseFloat(map.current.getZoom().toFixed(2)));
+      });
+  
+      map.current.on('load', () => {
+        // Fetch states data from the server
+        fetch('/states')
+          .then(response => response.json())
+          .then(data => {
+            setStates(data);
+            const statesGeoJSON = {
+              type: 'FeatureCollection',
+              features: data.map(state => ({
+                type: 'Feature',
+                properties: {
+                  name: state.name,
+                  id: state.id,
+                  CENSUSAREA: state.CENSUSAREA
+                },
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: state.geometry
+                }
+              }))
+            };
+  
+            map.current.addSource('states', { type: 'geojson', data: statesGeoJSON });
+  
+            // Fill layer
+            map.current.addLayer({
+              id: 'states-fill',
+              type: 'fill',
+              source: 'states',
+              paint: {
+                'fill-color': '#0080ff',
+                'fill-opacity': opacity
+              },
+              layout: {
+                'visibility': fillVisibility
+              }
+            });
+  
+            // Border layer
+            map.current.addLayer({
+              id: 'states-border',
+              type: 'line',
+              source: 'states',
+              layout: {
+                'visibility': fillVisibility
+              },
+              paint: {
+                'line-color': '#000',
+                'line-width': 1,
+                'line-opacity': opacity
+              }
+            });
+          })
+          .catch(error => {
+            console.error('Error fetching states data:', error);
+          });
+      });
+  
+      // Hover interaction
+      map.current.on('mousemove', 'states-fill', (e) => {
+        const stateName = e.features[0].properties.name;
+        const stateArea = e.features[0].properties.CENSUSAREA;
+        const coordinates = e.lngLat;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [lng, lat],
-      zoom: zoom
-    });
+        map.current.getCanvas().style.cursor = 'pointer';
 
-    map.current.on('move', () => {
-      setLng(parseFloat(map.current.getCenter().lng.toFixed(4)));
-      setLat(parseFloat(map.current.getCenter().lat.toFixed(4)));
-      setZoom(parseFloat(map.current.getZoom().toFixed(2)));
-    });
-
-    map.current.on('load', () => {
-      const statesGeoJSON = {
-        type: 'FeatureCollection',
-        features: states.map(state => ({
-          type: 'Feature',
-          properties: {
-            name: state.name,
-            id: state.id,
-            CENSUSAREA: state.CENSUSAREA
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: state.geometry
-          }
-        }))
-      };
-
-      map.current.addSource('states', { type: 'geojson', data: statesGeoJSON });
-
-      // Fill layer
-      map.current.addLayer({
-        id: 'states-fill',
-        type: 'fill',
-        source: 'states',
-        paint: {
-          'fill-color': '#0080ff',
-          'fill-opacity': opacity
-        },
-        layout: {
-          'visibility': fillVisibility
-        }
+        popup.current.setLngLat(coordinates)
+          .setHTML(`<h3>${stateName}</h3><p>Area: ${stateArea}</p>`)
+          .addTo(map.current);
       });
 
-      // Border layer
-      map.current.addLayer({
-        id: 'states-border',
-        type: 'line',
-        source: 'states',
-        layout: {
-          'visibility': fillVisibility
-        },
-        paint: {
-          'line-color': '#000',
-          'line-width': 1,
-          'line-opacity': opacity
-        }
+      // Remove popup on mouse leave
+      map.current.on('mouseleave', 'states-fill', () => {
+        map.current.getCanvas().style.cursor = '';
+        popup.current.remove();
       });
-    });
+    }
   }, [lng, lat, zoom, opacity, fillVisibility]);
+  
 
   const handleOpacityChange = (event) => {
     const newOpacity = parseFloat(event.target.value);
@@ -101,17 +131,15 @@ function App() {
   const handleStateSelectionChange = (event) => {
     const selectedId = event.target.value;
     setSelectedState(selectedId);
-  
+
     if (map.current) {
       map.current.setLayoutProperty('states-fill', 'visibility', 'visible');
       map.current.setLayoutProperty('states-border', 'visibility', 'visible');
-  
-     
+
       if (selectedId) {
         map.current.setLayoutProperty('states-fill', 'visibility', 'none');
         map.current.setLayoutProperty('states-border', 'visibility', 'none');
-  
-       
+
         map.current.setPaintProperty(
           'states-fill',
           'fill-opacity',
@@ -125,7 +153,6 @@ function App() {
       }
     }
   };
-  
 
   return (
     <div>
@@ -154,7 +181,6 @@ function App() {
           <label htmlFor="state-selection">Select State:</label>
           <select id="state-selection" onChange={handleStateSelectionChange} value={selectedState}>
             <option value="">All States</option>
-            {}
             {states.map(state => (
               <option key={state.id} value={state.id}>{state.name}</option>
             ))}
