@@ -163,6 +163,11 @@ function App() {
 
   return (
     <div>
+      <div className="left-corner-info">
+        <p>Longitude: {lng.toFixed(4)}</p>
+        <p>Latitude: {lat.toFixed(4)}</p>
+        <p>Zoom: {zoom.toFixed(2)}</p>
+      </div>
       <div className="map-container" ref={mapContainer} />
       <div className="top-right-controls">
         <div className="slider-container">
