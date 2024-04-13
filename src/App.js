@@ -92,12 +92,13 @@ function App() {
       map.current.on('mousemove', 'states-fill', (e) => {
         const stateName = e.features[0].properties.name;
         const stateArea = e.features[0].properties.CENSUSAREA;
+        const stateID = e.features[0].properties.id;
         const coordinates = e.lngLat;
 
         map.current.getCanvas().style.cursor = 'pointer';
 
         popup.current.setLngLat(coordinates)
-          .setHTML(`<h3>${stateName}</h3><p>Area: ${stateArea}</p>`)
+          .setHTML(`<h3>${stateName}</h3><p>Area: ${stateArea}</p><p>ID: ${stateID}</p>`)
           .addTo(map.current);
       });
 
@@ -127,32 +128,38 @@ function App() {
       map.current.setLayoutProperty('states-border', 'visibility', visibility);
     }
   };
-
   const handleStateSelectionChange = (event) => {
     const selectedId = event.target.value;
     setSelectedState(selectedId);
-
+  
     if (map.current) {
-      map.current.setLayoutProperty('states-fill', 'visibility', 'visible');
-      map.current.setLayoutProperty('states-border', 'visibility', 'visible');
-
       if (selectedId) {
-        map.current.setLayoutProperty('states-fill', 'visibility', 'none');
-        map.current.setLayoutProperty('states-border', 'visibility', 'none');
-
+        // Set opacity based on selection
         map.current.setPaintProperty(
           'states-fill',
           'fill-opacity',
-          ['match', ['get', 'id'], selectedId, 0.8, 0]
+          ['case',
+            ['==', ['get', 'id'], selectedId], 0.8, // Selected state has higher opacity
+            0 // Non-selected states are invisible
+          ]
         );
         map.current.setPaintProperty(
           'states-border',
           'line-opacity',
-          ['match', ['get', 'id'], selectedId, 1, 0]
+          ['case',
+            ['==', ['get', 'id'], selectedId], 1, // Selected state border is fully visible
+            0.1 // Other states have faint border
+          ]
         );
+      } else {
+        // Reset the opacity when no state is selected ('All States' option)
+        map.current.setPaintProperty('states-fill', 'fill-opacity', opacity);
+        map.current.setPaintProperty('states-border', 'line-opacity', opacity);
       }
     }
   };
+  
+  
 
   return (
     <div>
